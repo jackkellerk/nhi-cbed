@@ -97,15 +97,6 @@ for line in kmeans.cluster_centers_:
     y_vals = b + m * x_vals
     ax.plot(x_vals, y_vals, 'r-')
 
-for i in range(len(lines)):
-    if i % 46 == 0:
-        m, b = lines[i]
-
-        # Plot it
-        x_vals = np.array(ax.get_xlim())
-        y_vals = b + m * x_vals
-        ax.plot(x_vals, y_vals, 'r-')
-
 ax.set_xlim((0, image.shape[0]))
 ax.set_ylim((0, image.shape[1]))
 ax.axis('off')
@@ -118,37 +109,8 @@ image_from_plot_clustered = cv2.cvtColor(image_from_plot_clustered, cv2.COLOR_BG
 image_from_plot_clustered = np.where(image_from_plot_clustered == 255, 0, image_from_plot_clustered)
 image_from_plot_clustered = np.where(image_from_plot_clustered != 0, 255, image_from_plot_clustered)
 
-# Generate space for iterated
-fig = Figure(figsize=(image.shape[0]/120, image.shape[1]/120), dpi=120)
-canvas = FigureCanvas(fig)
-ax = fig.gca()
-
-ax.imshow(edges * 0, cmap=cm.gray)
-
-# Plot lines
-for i in range(len(lines)):
-    if i % 46 == 0:
-        m, b = lines[i]
-
-        # Plot it
-        x_vals = np.array(ax.get_xlim())
-        y_vals = b + m * x_vals
-        ax.plot(x_vals, y_vals, 'r-')
-
-ax.set_xlim((0, image.shape[0]))
-ax.set_ylim((0, image.shape[1]))
-ax.axis('off')
-
-canvas.draw()
-image_from_plot_iter = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-image_from_plot_iter = image_from_plot_iter.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-image_from_plot_iter = np.flipud(image_from_plot_iter)
-image_from_plot_iter = cv2.cvtColor(image_from_plot_iter, cv2.COLOR_BGR2GRAY)
-image_from_plot_iter = np.where(image_from_plot_iter == 255, 0, image_from_plot_iter)
-image_from_plot_iter = np.where(image_from_plot_iter != 0, 255, image_from_plot_iter)
-
 # Generate plots
-fig, axes = plt.subplots(1, 5, figsize=(15, 6))
+fig, axes = plt.subplots(1, 3, figsize=(15, 6))
 ax = axes.ravel()
 
 ax[0].imshow(image, cmap=cm.gray)
@@ -163,62 +125,76 @@ ax[2].imshow(image_from_plot_extrapolated, cmap=cm.gray)
 ax[2].set_title('Extrapolated lines')
 ax[2].set_axis_off()
 
-ax[3].imshow(image_from_plot_clustered, cmap=cm.gray)
-ax[3].set_title('Clustered pruning')
-ax[3].set_axis_off()
-
-ax[4].imshow(image_from_plot_iter, cmap=cm.gray)
-ax[4].set_title('Iterative pruning')
-ax[4].set_axis_off()
-
 plt.tight_layout()
 plt.show()
 
-# Compare the two methods
+from sklearn.cluster import AffinityPropagation
+model = AffinityPropagation(damping=0.7)
+model.fit(lines)
+# assign a cluster to each example
+yhat = model.predict(lines)
+# retrieve unique clusters
+clusters = np.unique(yhat)
+
+for cluster in clusters:
+	# get row indexes for samples with this cluster
+	row_ix = np.where(yhat == cluster)
+	# create scatter of these samples
+	plt.scatter(lines[row_ix, 0], lines[row_ix, 1])
+# show the plot
+plt.show()
+
+clustered_lines = np.array([lines[np.where(yhat == i)][0] for i in clusters])
+
+# Generate space for extrapolated hough
+fig = Figure(figsize=(image.shape[0]/120, image.shape[1]/120), dpi=120)
+canvas = FigureCanvas(fig)
+ax = fig.gca()
+
+ax.imshow(edges * 0, cmap=cm.gray)
+
+# Plot lines
+for line in clustered_lines:
+    m, b = line
+
+    # Plot it
+    x_vals = np.array(ax.get_xlim())
+    y_vals = b + m * x_vals
+    ax.plot(x_vals, y_vals, c='0.5')
+
+ax.set_xlim((0, image.shape[0]))
+ax.set_ylim((0, image.shape[1]))
+ax.axis('off')
+
+canvas.draw()
+image_from_plot_extracted = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+image_from_plot_extracted = image_from_plot_extracted.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+image_from_plot_extracted = np.flipud(image_from_plot_extracted)
+image_from_plot_extracted = cv2.cvtColor(image_from_plot_extracted, cv2.COLOR_BGR2GRAY)
+image_from_plot_extracted = np.where(image_from_plot_extracted == 255, 0, image_from_plot_extracted)
+image_from_plot_extracted = np.where(image_from_plot_extracted != 0, 255, image_from_plot_extracted)
+
 fig, axes = plt.subplots(1, 3, figsize=(15, 6))
 ax = axes.ravel()
 
 ax[0].imshow(image, cmap=cm.gray)
-ax[0].set_ylim((image.shape[0], 0))
+ax[0].set_title('Input image')
 ax[0].set_axis_off()
-ax[0].set_title('Cluster lines')
-for line in kmeans.cluster_centers_:
-    m, b = line
 
-    # Plot it
-    x_vals = np.array(ax[0].get_xlim())
-    y_vals = b + m * x_vals
-    ax[0].plot(x_vals, y_vals, 'r-')
-
-ax[1].imshow(image, cmap=cm.gray)
-ax[1].set_ylim((image.shape[0], 0))
+ax[1].imshow(image_from_plot_extrapolated, cmap=cm.gray)
+ax[1].set_title('Input image')
 ax[1].set_axis_off()
-ax[1].set_title('Iterative lines')
-for i in range(len(lines)):
-    if i % 46 == 0:
-        m, b = lines[i]
 
-        # Plot it
-        x_vals = np.array(ax[1].get_xlim())
-        y_vals = b + m * x_vals
-        ax[1].plot(x_vals, y_vals, 'r-')
-
-ax[2].imshow(label, cmap=cm.gray)
-ax[2].set_title('Label image')
+ax[2].imshow(image_from_plot_extracted, cmap=cm.gray)
+ax[2].set_title('Extracted lines')
 ax[2].set_axis_off()
 
 plt.tight_layout()
 plt.show()
 
-# Try density based clutering
-# from sklearn.cluster import SpectralClustering
-# clustering = SpectralClustering(n_clusters=n, assign_labels='discretize').fit(lines)
-# print(np.unique(clustering.labels_))
-
 # Show kmeans plot
 plt.plot(lines[:, 0], lines[:, 1], 'b.')
-plt.plot(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], 'r.')
 plt.xlabel("m")
 plt.ylabel("b")
 plt.title("Lines data points")
-plt.show()
+# plt.show()
